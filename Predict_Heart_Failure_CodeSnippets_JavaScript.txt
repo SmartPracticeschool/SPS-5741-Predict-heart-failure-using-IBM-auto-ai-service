@@ -1,0 +1,72 @@
+const XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+const btoa = require("btoa");
+const iam_credentials = new Map();
+
+// NOTE: you must manually construct iam_credentials hash map below using information retrieved
+// from your IBM Cloud.
+
+iam_credentials.set("url", iam_service_credentials_url);
+iam_credentials.set("username", iam_service_credentials_username);
+iam_credentials.set("password", iam_service_credentials_password);
+
+function apiGet(url, username, password, loadCallback, errorCallback){
+	const oReq = new XMLHttpRequest();
+	const tokenHeader = "Basic " + btoa((username + ":" + password));
+	const tokenUrl = url + "/identity/token";
+
+	oReq.addEventListener("load", loadCallback);
+	oReq.addEventListener("error", errorCallback);
+	oReq.open("GET", tokenUrl);
+	oReq.setRequestHeader("Authorization", tokenHeader);
+	oReq.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+	oReq.send();
+}
+
+function apiPost(scoring_url, token, payload, loadCallback, errorCallback){
+	const oReq = new XMLHttpRequest();
+	oReq.addEventListener("load", loadCallback);
+	oReq.addEventListener("error", errorCallback);
+	oReq.open("POST", scoring_url);
+	oReq.setRequestHeader("Accept", "application/json");
+	oReq.setRequestHeader("Authorization", token);
+	oReq.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+	oReq.send(payload);
+}
+
+apiGet(iam_credentials.get("url"),
+	iam_credentials.get("username"),
+	iam_credentials.get("password"),
+	function (res) {
+        let parsedGetResponse;
+        try {
+            parsedGetResponse = JSON.parse(this.responseText);
+        } catch(ex) {
+            // TODO: handle parsing exception
+        }
+        if (parsedGetResponse && parsedGetResponse.token) {
+            const token = parsedGetResponse.token
+            const iamToken = "Bearer " + token;
+
+            // NOTE: manually define and pass the array(s) of values to be scored in the next line
+            const payload = '{"fields": [array_of_input_fields], "values": [array_of_values_to_be_scored, another_array_of_values_to_be_scored]}';
+            const scoring_url = "https://us-south.ml.cloud.ibm.com/ml/v4/deployments/15abe05d-d1d9-4bb0-94a2-6e52def1ff23/predictions";
+
+            apiPost(scoring_url, iamToken, payload, function (resp) {
+                let parsedPostResponse;
+                try {
+                    parsedPostResponse = JSON.parse(this.responseText);
+                } catch (ex) {
+                    // TODO: handle parsing exception
+                }
+                console.log("Scoring response");
+                console.log(parsedPostResponse);
+            }, function (error) {
+                console.log(error);
+            });
+        } else {
+            console.log("Failed to retrieve Bearer token");
+        }
+	}, function (err) {
+		console.log(err);
+	}
+);
